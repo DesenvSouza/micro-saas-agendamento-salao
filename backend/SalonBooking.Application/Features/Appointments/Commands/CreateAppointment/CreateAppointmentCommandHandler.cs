@@ -14,6 +14,8 @@ public class CreateAppointmentCommandHandler : IRequestHandler<CreateAppointment
     private readonly IServiceRepository _serviceRepository;
     private readonly IEstablishmentRepository _establishmentRepository;
     private readonly INotificationRepository _notificationRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly IEmailService _emailService;
     private readonly ICurrentUserService _currentUserService;
 
     public CreateAppointmentCommandHandler(
@@ -22,6 +24,8 @@ public class CreateAppointmentCommandHandler : IRequestHandler<CreateAppointment
         IServiceRepository serviceRepository,
         IEstablishmentRepository establishmentRepository,
         INotificationRepository notificationRepository,
+        IUserRepository userRepository,
+        IEmailService emailService,
         ICurrentUserService currentUserService)
     {
         _appointmentRepository = appointmentRepository;
@@ -29,6 +33,8 @@ public class CreateAppointmentCommandHandler : IRequestHandler<CreateAppointment
         _serviceRepository = serviceRepository;
         _establishmentRepository = establishmentRepository;
         _notificationRepository = notificationRepository;
+        _userRepository = userRepository;
+        _emailService = emailService;
         _currentUserService = currentUserService;
     }
 
@@ -87,7 +93,7 @@ public class CreateAppointmentCommandHandler : IRequestHandler<CreateAppointment
 
         await _appointmentRepository.AddAsync(appointment, cancellationToken);
 
-        // Notify establishment about the new booking
+        // In-app notification for establishment
         var notificationType = appointment.Status == AppointmentStatus.Confirmed
             ? NotificationType.AppointmentConfirmed
             : NotificationType.AppointmentCreated;
@@ -96,10 +102,24 @@ public class CreateAppointmentCommandHandler : IRequestHandler<CreateAppointment
             establishment.Id,
             notificationType,
             "Novo agendamento",
-            $"Um novo agendamento foi realizado para {service.Name} com {professional.Name} em {request.StartTime:dd/MM/yyyy HH:mm}.",
+            $"Novo agendamento: {service.Name} com {professional.Name} em {request.StartTime:dd/MM/yyyy HH:mm}.",
             appointment.Id);
 
         await _notificationRepository.AddAsync(notification, cancellationToken);
+
+        // Email to client if auto-confirmed
+        if (appointment.Status == AppointmentStatus.Confirmed)
+        {
+            var client = await _userRepository.GetByIdAsync(clientId, cancellationToken);
+            if (client is not null)
+                await _emailService.SendAppointmentConfirmationAsync(
+                    client.Email,
+                    client is Client c ? c.FullName : client.Email,
+                    establishment.TradeName,
+                    request.StartTime,
+                    service.Name,
+                    cancellationToken);
+        }
 
         return appointment.ToDto();
     }

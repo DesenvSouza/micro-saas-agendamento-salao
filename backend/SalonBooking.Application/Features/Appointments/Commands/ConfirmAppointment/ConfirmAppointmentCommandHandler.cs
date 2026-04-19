@@ -11,15 +11,18 @@ public class ConfirmAppointmentCommandHandler : IRequestHandler<ConfirmAppointme
 {
     private readonly IAppointmentRepository _appointmentRepository;
     private readonly INotificationRepository _notificationRepository;
+    private readonly IEmailService _emailService;
     private readonly ICurrentUserService _currentUserService;
 
     public ConfirmAppointmentCommandHandler(
         IAppointmentRepository appointmentRepository,
         INotificationRepository notificationRepository,
+        IEmailService emailService,
         ICurrentUserService currentUserService)
     {
         _appointmentRepository = appointmentRepository;
         _notificationRepository = notificationRepository;
+        _emailService = emailService;
         _currentUserService = currentUserService;
     }
 
@@ -48,6 +51,15 @@ public class ConfirmAppointmentCommandHandler : IRequestHandler<ConfirmAppointme
             appointment.Id);
 
         await _notificationRepository.AddAsync(notification, cancellationToken);
+
+        if (appointment.Client is not null)
+            await _emailService.SendAppointmentConfirmationAsync(
+                appointment.Client.Email,
+                appointment.Client is Client c ? c.FullName : appointment.Client.Email,
+                appointment.Establishment?.TradeName ?? string.Empty,
+                appointment.StartTime,
+                appointment.Service?.Name ?? string.Empty,
+                cancellationToken);
 
         return appointment.ToDto();
     }
