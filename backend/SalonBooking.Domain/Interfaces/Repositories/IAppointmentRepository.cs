@@ -31,4 +31,6 @@ public interface IAppointmentRepository : IRepository<Appointment>
         DateTime endTime,
         Guid? excludeAppointmentId = null,
         CancellationToken cancellationToken = default);
+
+    Task<Appointment?> GetWithDetailsAsync(Guid id, CancellationToken cancellationToken = default);
 }

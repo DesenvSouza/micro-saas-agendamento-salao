@@ -85,4 +85,12 @@ public class AppointmentRepository : BaseRepository<Appointment>, IAppointmentRe
 
         return await query.AnyAsync(cancellationToken);
     }
+
+    public async Task<Appointment?> GetWithDetailsAsync(Guid id, CancellationToken cancellationToken = default) =>
+        await _dbSet
+            .Include(a => a.Client)
+            .Include(a => a.Establishment)
+            .Include(a => a.Professional)
+            .Include(a => a.Service)
+            .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 }
